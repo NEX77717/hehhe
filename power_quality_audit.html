@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Power Quality Audit — RLC Calculator</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --panel: #0f1525;
+    --border: #1e2a45;
+    --accent: #00d4ff;
+    --accent2: #7c3aed;
+    --accent3: #10b981;
+    --warn: #f59e0b;
+    --danger: #ef4444;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --vr: #3b82f6;
+    --vl: #ef4444;
+    --vc: #10b981;
+    --vi: #a78bfa;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  /* Grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+
+  /* Header */
+  .header {
+    text-align: center;
+    margin-bottom: 48px;
+  }
+  .header-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    opacity: 0.8;
+  }
+  h1 {
+    font-size: clamp(28px, 5vw, 48px);
+    font-weight: 800;
+    letter-spacing: -1px;
+    line-height: 1.1;
+    background: linear-gradient(135deg, #fff 0%, var(--accent) 60%, var(--accent2) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 10px;
+  }
+  .subtitle {
+    color: var(--muted);
+    font-size: 15px;
+    font-weight: 400;
+  }
+
+  /* Input section */
+  .input-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px;
+    margin-bottom: 32px;
+    position: relative;
+    overflow: hidden;
+  }
+  .input-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent2), var(--accent), var(--accent3));
+  }
+  .input-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    display: block;
+  }
+  .input-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .usn-input {
+    flex: 1;
+    min-width: 200px;
+    background: #070c18;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: 2px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .usn-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(0,212,255,0.1);
+  }
+  .usn-input::placeholder { color: var(--muted); font-size: 14px; letter-spacing: 1px; }
+  .calc-btn {
+    background: linear-gradient(135deg, var(--accent2), var(--accent));
+    border: none;
+    border-radius: 10px;
+    padding: 14px 32px;
+    font-family: 'Syne', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    color: #fff;
+    cursor: pointer;
+    letter-spacing: 0.5px;
+    transition: transform 0.15s, opacity 0.15s;
+    white-space: nowrap;
+  }
+  .calc-btn:hover { transform: translateY(-1px); opacity: 0.92; }
+  .calc-btn:active { transform: translateY(0); }
+
+  .params-display {
+    margin-top: 20px;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .param-chip {
+    background: rgba(0,212,255,0.06);
+    border: 1px solid rgba(0,212,255,0.2);
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--accent);
+    display: none;
+  }
+  .param-chip.show { display: block; }
+
+  /* Results */
+  .results { display: none; }
+  .results.show { display: block; }
+
+  .section-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* Expression box */
+  .expr-box {
+    background: #070c18;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 24px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 16px;
+    color: var(--accent);
+    text-align: center;
+    letter-spacing: 0.5px;
+  }
+
+  /* Metrics grid */
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+  .metric-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 20px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+  .metric-card:hover { border-color: var(--accent); }
+  .metric-card .accent-bar {
+    position: absolute;
+    top: 0; left: 0;
+    width: 3px;
+    height: 100%;
+    border-radius: 12px 0 0 12px;
+  }
+  .metric-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .metric-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .metric-unit {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--muted);
+    margin-left: 4px;
+  }
+
+  /* Voltage drops */
+  .voltage-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+  .v-card {
+    background: var(--panel);
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    border: 1px solid var(--border);
+    position: relative;
+    overflow: hidden;
+  }
+  .v-card::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 2px;
+  }
+  .v-card.vr::after { background: var(--vr); }
+  .v-card.vl::after { background: var(--vl); }
+  .v-card.vc::after { background: var(--vc); }
+  .v-card-label { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 2px; color: var(--muted); margin-bottom: 8px; }
+  .v-card-value { font-family: 'JetBrains Mono', monospace; font-size: 22px; font-weight: 700; }
+  .v-card.vr .v-card-value { color: var(--vr); }
+  .v-card.vl .v-card-value { color: var(--vl); }
+  .v-card.vc .v-card-value { color: var(--vc); }
+  .v-card-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+  /* Power cards */
+  .power-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+  .power-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+  }
+  .power-label { font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; margin-bottom: 6px; }
+  .power-name { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+  .power-value { font-family: 'JetBrains Mono', monospace; font-size: 22px; font-weight: 700; }
+
+  /* PF verdict */
+  .pf-verdict {
+    background: var(--panel);
+    border-radius: 14px;
+    padding: 24px;
+    margin-bottom: 24px;
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  .pf-big {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 48px;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .pf-info { flex: 1; min-width: 200px; }
+  .pf-title { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+  .pf-desc { font-size: 14px; color: var(--muted); line-height: 1.5; }
+  .verdict-badge {
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    display: inline-block;
+    margin-top: 8px;
+  }
+  .badge-ok { background: rgba(16,185,129,0.15); color: var(--accent3); border: 1px solid rgba(16,185,129,0.3); }
+  .badge-warn { background: rgba(245,158,11,0.15); color: var(--warn); border: 1px solid rgba(245,158,11,0.3); }
+
+  /* Correction box */
+  .correction-box {
+    background: rgba(124,58,237,0.08);
+    border: 1px solid rgba(124,58,237,0.3);
+    border-radius: 14px;
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+  .correction-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--accent2);
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .correction-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+  }
+  .corr-item {
+    background: rgba(0,0,0,0.3);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .corr-label { font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 2px; color: var(--muted); margin-bottom: 6px; }
+  .corr-val { font-family: 'JetBrains Mono', monospace; font-size: 18px; font-weight: 700; color: var(--accent2); }
+
+  /* Phasor SVG */
+  .phasor-container {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    margin-bottom: 24px;
+  }
+
+  /* Summary table */
+  .summary-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+  }
+  .summary-table tr { border-bottom: 1px solid var(--border); }
+  .summary-table tr:last-child { border-bottom: none; }
+  .summary-table td { padding: 10px 14px; }
+  .summary-table td:first-child { color: var(--muted); font-size: 11px; letter-spacing: 1px; }
+  .summary-table td:last-child { color: var(--text); font-weight: 600; text-align: right; }
+  .table-wrapper {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    margin-bottom: 24px;
+  }
+
+  /* Phase tag */
+  .phase-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    margin-left: 6px;
+  }
+  .leading { background: rgba(16,185,129,0.15); color: var(--accent3); }
+  .lagging { background: rgba(239,68,68,0.15); color: var(--danger); }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <div class="header-tag">⚡ Electrical Lab · AC Circuit Analysis</div>
+    <h1>Power Quality Audit</h1>
+    <p class="subtitle">Series RLC Circuit · 230 V RMS · 50 Hz · Single Phase</p>
+  </div>
+
+  <div class="input-card">
+    <span class="input-label">// Enter Your USN</span>
+    <div class="input-row">
+      <input class="usn-input" id="usnInput" type="text" placeholder="e.g. 1SI22EC005" maxlength="20" />
+      <button class="calc-btn" onclick="calculate()">Calculate →</button>
+    </div>
+    <div class="params-display" id="paramsDisplay"></div>
+  </div>
+
+  <div class="results" id="results">
+
+    <!-- Part A -->
+    <div class="section-title">Part A — Signal Analysis</div>
+    <div class="expr-box" id="vtExpr"></div>
+
+    <!-- Part B -->
+    <div class="section-title">Part B — Impedance & Current</div>
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div class="accent-bar" style="background:var(--accent)"></div>
+        <div class="metric-label">Reactance X_L</div>
+        <div class="metric-value" id="xl" style="color:var(--vl)">—<span class="metric-unit">Ω</span></div>
+      </div>
+      <div class="metric-card">
+        <div class="accent-bar" style="background:var(--accent3)"></div>
+        <div class="metric-label">Reactance X_C</div>
+        <div class="metric-value" id="xc" style="color:var(--vc)">—<span class="metric-unit">Ω</span></div>
+      </div>
+      <div class="metric-card">
+        <div class="accent-bar" style="background:var(--muted)"></div>
+        <div class="metric-label">Net Reactance X_net</div>
+        <div class="metric-value" id="xnet">—<span class="metric-unit">Ω</span></div>
+      </div>
+      <div class="metric-card">
+        <div class="accent-bar" style="background:var(--accent2)"></div>
+        <div class="metric-label">Total Impedance Z</div>
+        <div class="metric-value" id="Z" style="color:var(--vi)">—<span class="metric-unit">Ω</span></div>
+      </div>
+      <div class="metric-card">
+        <div class="accent-bar" style="background:var(--accent)"></div>
+        <div class="metric-label">Phase Angle φ</div>
+        <div class="metric-value" id="phi">—<span class="metric-unit">°</span></div>
+      </div>
+      <div class="metric-card">
+        <div class="accent-bar" style="background:var(--accent)"></div>
+        <div class="metric-label">RMS Current I</div>
+        <div class="metric-value" id="Irms" style="color:var(--vi)">—<span class="metric-unit">A</span></div>
+      </div>
+    </div>
+
+    <!-- Voltage drops -->
+    <div class="section-title">Voltage Drops</div>
+    <div class="voltage-grid">
+      <div class="v-card vr">
+        <div class="v-card-label">V_R</div>
+        <div class="v-card-value" id="VR">—</div>
+        <div class="v-card-sub">Resistive · in phase with I</div>
+      </div>
+      <div class="v-card vl">
+        <div class="v-card-label">V_L</div>
+        <div class="v-card-value" id="VL">—</div>
+        <div class="v-card-sub">Inductive · leads I 90°</div>
+      </div>
+      <div class="v-card vc">
+        <div class="v-card-label">V_C</div>
+        <div class="v-card-value" id="VC">—</div>
+        <div class="v-card-sub">Capacitive · lags I 90°</div>
+      </div>
+    </div>
+
+    <!-- Phasor diagram -->
+    <div class="section-title">Phasor Diagram</div>
+    <div class="phasor-container">
+      <svg id="phasorSVG" width="100%" viewBox="0 0 660 360" role="img">
+        <title>Phasor Diagram</title>
+      </svg>
+    </div>
+
+    <!-- Part C -->
+    <div class="section-title">Part C — Power Metrics</div>
+    <div class="power-grid">
+      <div class="power-card">
+        <div class="power-label">P</div>
+        <div class="power-name">Real Power</div>
+        <div class="power-value" id="P" style="color:var(--warn)">—</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);margin-top:4px">W</div>
+      </div>
+      <div class="power-card">
+        <div class="power-label">Q</div>
+        <div class="power-name">Reactive Power</div>
+        <div class="power-value" id="Q" style="color:var(--vl)">—</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);margin-top:4px">VAR</div>
+      </div>
+      <div class="power-card">
+        <div class="power-label">S</div>
+        <div class="power-name">Apparent Power</div>
+        <div class="power-value" id="S" style="color:var(--accent)">—</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);margin-top:4px">VA</div>
+      </div>
+    </div>
+
+    <!-- Power Factor -->
+    <div class="section-title">Power Factor</div>
+    <div class="pf-verdict" id="pfVerdict">
+      <div class="pf-big" id="pfBig">—</div>
+      <div class="pf-info">
+        <div class="pf-title" id="pfTitle">—</div>
+        <div class="pf-desc" id="pfDesc">—</div>
+        <div class="verdict-badge" id="pfBadge">—</div>
+      </div>
+    </div>
+
+    <!-- Correction -->
+    <div class="correction-box" id="correctionBox" style="display:none">
+      <div class="correction-title">⚡ Capacitance Correction for Unity PF</div>
+      <div class="correction-grid">
+        <div class="corr-item">
+          <div class="corr-label">C_original</div>
+          <div class="corr-val" id="cOrig">—</div>
+        </div>
+        <div class="corr-item">
+          <div class="corr-label">C_required</div>
+          <div class="corr-val" id="cNew">—</div>
+        </div>
+        <div class="corr-item">
+          <div class="corr-label">ΔC to add</div>
+          <div class="corr-val" id="deltaC">—</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Summary table -->
+    <div class="section-title">Full Summary</div>
+    <div class="table-wrapper">
+      <table class="summary-table" id="summaryTable"></table>
+    </div>
+
+  </div>
+</div>
+
+<script>
+function extractN(usn) {
+  const trimmed = usn.trim();
+  if (trimmed.length < 2) return null;
+  const last2 = trimmed.slice(-2);
+  if (!/^\d{2}$/.test(last2)) return null;
+  return parseInt(last2, 10);
+}
+
+function fmt(val, dec=3) {
+  return Number(val).toFixed(dec);
+}
+
+function calculate() {
+  const usn = document.getElementById('usnInput').value.trim();
+  if (!usn) { alert('Please enter your USN.'); return; }
+  const N = extractN(usn);
+  if (N === null) { alert('USN must end with two digits (e.g. 1SI22EC005).'); return; }
+
+  const R = 50 + N;
+  const L = (100 + N) / 1000;       // in H
+  const C_uF = 50 + N;
+  const C = C_uF / 1e6;              // in F
+
+  const Vrms = 230, f = 50;
+  const omega = 2 * Math.PI * f;
+  const Vpeak = Vrms * Math.SQRT2;
+
+  const XL = omega * L;
+  const XC = 1 / (omega * C);
+  const Xnet = XL - XC;
+  const Z = Math.sqrt(R*R + Xnet*Xnet);
+  const phi_rad = Math.atan2(Xnet, R);
+  const phi_deg = phi_rad * 180 / Math.PI;
+
+  const Irms = Vrms / Z;
+  const VR = Irms * R;
+  const VL = Irms * XL;
+  const VC = Irms * XC;
+
+  const P = Irms * Irms * R;
+  const Qval = Irms * Irms * Xnet;
+  const S = Vrms * Irms;
+  const PF = P / S;
+  const leading = Xnet < 0;
+
+  // Correction for unity PF
+  const Cnew_F = 1 / (omega * XL);
+  const Cnew_uF = Cnew_F * 1e6;
+  const deltaC_uF = Cnew_uF - C_uF;
+
+  // Show params
+  const pd = document.getElementById('paramsDisplay');
+  pd.innerHTML = `
+    <div class="param-chip show">N = ${String(N).padStart(2,'0')}</div>
+    <div class="param-chip show">R = ${R} Ω</div>
+    <div class="param-chip show">L = ${100+N} mH</div>
+    <div class="param-chip show">C = ${C_uF} µF</div>
+  `;
+
+  // Part A
+  document.getElementById('vtExpr').textContent =
+    `v(t) = ${fmt(Vpeak,2)} · sin(${fmt(omega,2)} t)  V`;
+
+  // Part B
+  document.getElementById('xl').innerHTML = `${fmt(XL,3)}<span class="metric-unit">Ω</span>`;
+  document.getElementById('xc').innerHTML = `${fmt(XC,3)}<span class="metric-unit">Ω</span>`;
+  const xnetEl = document.getElementById('xnet');
+  xnetEl.innerHTML = `${fmt(Xnet,3)}<span class="metric-unit">Ω</span>`;
+  xnetEl.style.color = leading ? 'var(--vc)' : 'var(--vl)';
+  document.getElementById('Z').innerHTML = `${fmt(Z,3)}<span class="metric-unit">Ω</span>`;
+  document.getElementById('phi').innerHTML =
+    `${fmt(phi_deg,2)}<span class="metric-unit">°</span> <span class="phase-tag ${leading?'leading':'lagging'}">${leading?'Leading':'Lagging'}</span>`;
+  document.getElementById('Irms').innerHTML = `${fmt(Irms,4)}<span class="metric-unit">A</span>`;
+
+  document.getElementById('VR').textContent = `${fmt(VR,2)} V`;
+  document.getElementById('VL').textContent = `${fmt(VL,2)} V`;
+  document.getElementById('VC').textContent = `${fmt(VC,2)} V`;
+
+  // Part C
+  document.getElementById('P').textContent = fmt(P,2);
+  document.getElementById('Q').textContent = fmt(Qval,2);
+  document.getElementById('S').textContent = fmt(S,2);
+
+  // PF
+  const pfEl = document.getElementById('pfBig');
+  pfEl.textContent = PF.toFixed(4);
+  pfEl.style.color = PF >= 0.95 ? 'var(--accent3)' : 'var(--warn)';
+
+  const efficient = PF >= 0.95;
+  document.getElementById('pfTitle').textContent = efficient
+    ? 'Operating Efficiently' : 'Below Efficiency Threshold';
+  document.getElementById('pfDesc').textContent = leading
+    ? `Current leads voltage by ${fmt(Math.abs(phi_deg),2)}° — net capacitive circuit. PF = ${PF.toFixed(4)}. Threshold: 0.95.`
+    : `Current lags voltage by ${fmt(Math.abs(phi_deg),2)}° — net inductive circuit. PF = ${PF.toFixed(4)}. Threshold: 0.95.`;
+  const badge = document.getElementById('pfBadge');
+  badge.textContent = efficient ? '✓ No Penalty' : '⚠ Utility Penalty Applies';
+  badge.className = 'verdict-badge ' + (efficient ? 'badge-ok' : 'badge-warn');
+
+  // Correction
+  const corrBox = document.getElementById('correctionBox');
+  if (!efficient) {
+    corrBox.style.display = 'block';
+    document.getElementById('cOrig').textContent = `${C_uF.toFixed(2)} µF`;
+    document.getElementById('cNew').textContent = `${Cnew_uF.toFixed(3)} µF`;
+    document.getElementById('deltaC').textContent = `+${deltaC_uF.toFixed(3)} µF`;
+  } else {
+    corrBox.style.display = 'none';
+  }
+
+  // Summary table
+  const rows = [
+    ['Source Voltage (Vrms)', '230 V'],
+    ['Frequency', '50 Hz'],
+    ['N (last 2 digits of USN)', String(N).padStart(2,'0')],
+    ['Resistance R', `${R} Ω`],
+    ['Inductance L', `${100+N} mH`],
+    ['Capacitance C', `${C_uF} µF`],
+    ['v(t)', `${fmt(Vpeak,2)} sin(${fmt(omega,2)} t) V`],
+    ['X_L', `${fmt(XL,3)} Ω`],
+    ['X_C', `${fmt(XC,3)} Ω`],
+    ['X_net', `${fmt(Xnet,3)} Ω`],
+    ['Impedance Z', `${fmt(Z,4)} Ω`],
+    ['Phase Angle φ', `${fmt(phi_deg,3)}° (${leading?'Leading':'Lagging'})`],
+    ['RMS Current I', `${fmt(Irms,4)} A`],
+    ['V_R', `${fmt(VR,3)} V`],
+    ['V_L', `${fmt(VL,3)} V`],
+    ['V_C', `${fmt(VC,3)} V`],
+    ['Real Power P', `${fmt(P,3)} W`],
+    ['Reactive Power Q', `${fmt(Qval,3)} VAR`],
+    ['Apparent Power S', `${fmt(S,3)} VA`],
+    ['Power Factor', `${PF.toFixed(4)} (${leading?'leading':'lagging'})`],
+    ['Efficient? (PF ≥ 0.95)', efficient ? 'Yes ✓' : 'No ✗'],
+    ['C for unity PF', `${Cnew_uF.toFixed(3)} µF`],
+    ['ΔC required', `+${deltaC_uF.toFixed(3)} µF`],
+  ];
+  const tbody = rows.map(([k,v]) =>
+    `<tr><td>${k}</td><td>${v}</td></tr>`).join('');
+  document.getElementById('summaryTable').innerHTML = tbody;
+
+  // Draw phasor
+  drawPhasor(phi_deg, VR, VL, VC, Vrms, Irms, leading);
+
+  // Show results
+  document.getElementById('results').classList.add('show');
+  document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function drawPhasor(phi_deg, VR, VL, VC, Vrms, Irms, leading) {
+  const svg = document.getElementById('phasorSVG');
+  const cx = 230, cy = 185, scale = 0.78;
+
+  const phi_rad = phi_deg * Math.PI / 180;
+  const current_angle = -phi_rad; // angle of current from +Re axis (CCW positive in math, SVG y flipped)
+
+  // VR along current, VL leads I by 90°, VC lags I by 90°
+  const VR_len = VR * scale, VL_len = VL * scale, VC_len = VC * scale;
+  const V_len = Vrms * scale;
+  const I_len = 120; // display length for current arrow
+
+  function toSVG(len, angle_rad) {
+    return [cx + len * Math.cos(angle_rad), cy - len * Math.sin(angle_rad)];
+  }
+
+  const [vx, vy] = toSVG(V_len, 0);
+  const [irx, iry] = toSVG(I_len, current_angle);
+  const [VRx, VRy] = toSVG(VR_len, current_angle);
+  const [VLx, VLy] = toSVG(VL_len, current_angle + Math.PI/2);
+  const [VCx, VCy] = toSVG(VC_len, current_angle - Math.PI/2);
+
+  const arcR = 40;
+  const arcEnd = toSVG(arcR, current_angle);
+  const largeArc = Math.abs(phi_deg) > 180 ? 1 : 0;
+  const sweepArc = leading ? 1 : 0;
+
+  svg.innerHTML = `
+    <defs>
+      <marker id="pa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M1 1L9 5L1 9" fill="none" stroke="context-stroke" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </marker>
+    </defs>
+    <!-- Grid lines -->
+    <line x1="80" y1="${cy}" x2="430" y2="${cy}" stroke="#1e2a45" stroke-width="1"/>
+    <line x1="${cx}" y1="20" x2="${cx}" y2="340" stroke="#1e2a45" stroke-width="1"/>
+    <text x="428" y="${cy+14}" font-family="JetBrains Mono" font-size="11" fill="#3a4a6a">Re</text>
+    <text x="${cx+6}" y="22" font-family="JetBrains Mono" font-size="11" fill="#3a4a6a">Im</text>
+
+    <!-- V — source voltage reference -->
+    <line x1="${cx}" y1="${cy}" x2="${vx}" y2="${vy}" stroke="#f59e0b" stroke-width="3" marker-end="url(#pa)"/>
+    <text x="${vx+8}" y="${vy+4}" font-family="JetBrains Mono" font-size="12" fill="#f59e0b" font-weight="700">V = ${Vrms} V (0°)</text>
+
+    <!-- I — current phasor -->
+    <line x1="${cx}" y1="${cy}" x2="${irx}" y2="${iry}" stroke="#a78bfa" stroke-width="2.5" stroke-dasharray="7 3" marker-end="url(#pa)"/>
+
+    <!-- VR along current direction -->
+    <line x1="${cx}" y1="${cy}" x2="${VRx}" y2="${VRy}" stroke="#3b82f6" stroke-width="2.5" marker-end="url(#pa)"/>
+
+    <!-- VL -->
+    <line x1="${cx}" y1="${cy}" x2="${VLx}" y2="${VLy}" stroke="#ef4444" stroke-width="2.5" marker-end="url(#pa)"/>
+
+    <!-- VC -->
+    <line x1="${cx}" y1="${cy}" x2="${VCx}" y2="${VCy}" stroke="#10b981" stroke-width="2.5" marker-end="url(#pa)"/>
+
+    <!-- Phase angle arc -->
+    <path d="M ${cx+arcR} ${cy} A ${arcR} ${arcR} 0 ${largeArc} ${sweepArc} ${arcEnd[0]} ${arcEnd[1]}"
+      fill="none" stroke="#f59e0b" stroke-width="1" stroke-dasharray="3 2"/>
+    <text x="${cx + arcR + 10}" y="${cy + (leading ? -10 : 14)}"
+      font-family="JetBrains Mono" font-size="11" fill="#94a3b8">
+      φ = ${Math.abs(phi_deg).toFixed(2)}° ${leading?'lead':'lag'}
+    </text>
+
+    <!-- Legend -->
+    <rect x="445" y="50" width="200" height="175" rx="10" fill="#0f1525" stroke="#1e2a45" stroke-width="1"/>
+    <text x="545" y="73" text-anchor="middle" font-family="JetBrains Mono" font-size="11" fill="#64748b" letter-spacing="2">LEGEND</text>
+    <line x1="460" y1="92" x2="492" y2="92" stroke="#f59e0b" stroke-width="3" marker-end="url(#pa)"/>
+    <text x="500" y="96" font-family="JetBrains Mono" font-size="12" fill="#f59e0b">V (source)</text>
+    <line x1="460" y1="114" x2="492" y2="114" stroke="#a78bfa" stroke-width="2.5" stroke-dasharray="7 3" marker-end="url(#pa)"/>
+    <text x="500" y="118" font-family="JetBrains Mono" font-size="12" fill="#a78bfa">I (current)</text>
+    <line x1="460" y1="136" x2="492" y2="136" stroke="#3b82f6" stroke-width="2.5" marker-end="url(#pa)"/>
+    <text x="500" y="140" font-family="JetBrains Mono" font-size="12" fill="#3b82f6">V_R</text>
+    <line x1="460" y1="158" x2="492" y2="158" stroke="#ef4444" stroke-width="2.5" marker-end="url(#pa)"/>
+    <text x="500" y="162" font-family="JetBrains Mono" font-size="12" fill="#ef4444">V_L</text>
+    <line x1="460" y1="180" x2="492" y2="180" stroke="#10b981" stroke-width="2.5" marker-end="url(#pa)"/>
+    <text x="500" y="184" font-family="JetBrains Mono" font-size="12" fill="#10b981">V_C</text>
+    <text x="460" y="210" font-family="JetBrains Mono" font-size="10" fill="#64748b">Scale: 1V ≈ ${scale.toFixed(2)}px</text>
+
+    <!-- Origin dot -->
+    <circle cx="${cx}" cy="${cy}" r="4" fill="#00d4ff"/>
+  `;
+}
+
+// Allow pressing Enter
+document.getElementById('usnInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') calculate();
+});
+</script>
+</body>
+</html>
